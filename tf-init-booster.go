@@ -34,18 +34,23 @@ type repoKey struct {
 }
 
 func main() {
-	if _, err := os.Stat(".terraform/modules/modules.json"); err == nil {
+	usr, err := user.Current()
+	if err != nil {
 		log.Fatal(err)
+	}
+	if _, err := os.Stat(".terraform/modules/modules.json"); err == nil {
+		fmt.Printf("modules.json already exists, skipping")
+		return
 	}
 	gitCryptKey := os.Getenv("GIT_CRYPT_KEY")
 	if err := os.MkdirAll(".terraform/modules", 0755); err != nil {
 		log.Fatal(err)
 	}
 	r := regexp.MustCompile(`(?s)module\s*"([a-zA-Z0-9_\.-]+)"\s*{.*?source\s*=\s*"git@([a-zA-Z0-9_\.-]+):([a-zA-Z0-9_\/-]+)\.git(\/\/[a-zA-Z0-9_\/-]+)?(\?ref=[a-zA-Z0-9_\/\.-]+)?"`)
-	repos := map[repoKey]*git.Repository{}
+	repos := map[repoKey]string{}
 	modules := map[string]Module{"": {Key: "", Source: "", Dir: "."}}
 	branches := map[repoKey]map[string]string{}
-	err := filepath.Walk(".",
+	err = filepath.Walk(".",
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -65,59 +70,64 @@ func main() {
 							branchName = "refs/tags/" + branch[5:]
 						}
 						key := repoKey{host: host, path: repopath}
-						workdir := ".terraform/repo/" + host + "/" + repopath
-						moduleDir := ".terraform/modules/" + name
-						repo, ok := repos[key]
+						workdir := filepath.Join(usr.HomeDir, ".terraform.d/repositories", host, repopath)
+						moduleDir := filepath.Join(".terraform/modules", name)
+						_, ok := repos[key]
 						if !ok {
 							branches[key] = map[string]string{}
-							if _, err := os.Stat(workdir); os.IsNotExist(err) {
-								auth, err := getAuth(host)
-								if err != nil {
-									return err
-								}
-								if repo, err = git.PlainClone(workdir, false, &git.CloneOptions{URL: fmt.Sprintf("git@%s:%s.git", host, repopath), Auth: auth}); err != nil {
-									return err
-								}
-							} else {
-								if repo, err = git.PlainOpen(workdir); err != nil {
-									return err
-								}
-								if err := repo.Fetch(&git.FetchOptions{}); err != nil {
-									return err
-								}
+							auth, err := getAuth(host)
+							if err != nil {
+								return err
 							}
-							repos[key] = repo
+							if _, err := os.Stat(workdir); os.IsNotExist(err) {
+								if _, err = git.PlainClone(workdir, false, &git.CloneOptions{
+									URL:  fmt.Sprintf("git@%s:%s.git", host, repopath),
+									Auth: auth,
+								}); err != nil {
+									return err
+								}
+							} else if repo, err := git.PlainOpen(workdir); err != nil {
+								return err
+							} else if err := repo.Fetch(&git.FetchOptions{
+								Auth: auth,
+							}); err != nil && err != git.NoErrAlreadyUpToDate {
+								return err
+							}
+							repos[key] = workdir
 						}
 
 						if branchDir, ok := branches[key][branch]; !ok {
-							if worktree, err := repo.Worktree(); err != nil {
+							if err := copyDir(workdir, moduleDir); err != nil {
 								return err
-							} else {
-								if err := worktree.Checkout(&git.CheckoutOptions{Branch: plumbing.ReferenceName(branchName)}); err != nil {
-									return err
-								}
-								if err := copyDir(workdir, moduleDir); err != nil {
-									return err
-								}
-								if gitCryptKey != "" {
-									cmd := exec.Command("git-crypt", "unlock", gitCryptKey)
-									cmd.Dir = moduleDir
-									cmd.Stderr = os.Stderr
-									if err := cmd.Run(); err != nil {
-										return err
-									}
-								}
-								branches[key][branch] = moduleDir
+							} else if repo, err := git.PlainOpen(moduleDir); err != nil {
+								return err
+							} else if worktree, err := repo.Worktree(); err != nil {
+								return err
+							} else if err := worktree.Checkout(&git.CheckoutOptions{Branch: plumbing.ReferenceName(branchName)}); err != nil {
+								return err
 							}
+							if gitCryptKey != "" {
+								cmd := exec.Command("git-crypt", "unlock", gitCryptKey)
+								cmd.Dir = moduleDir
+								cmd.Stderr = os.Stderr
+								if err := cmd.Run(); err != nil {
+									return err
+								}
+							}
+							branches[key][branch] = moduleDir
 						} else {
 							if err := os.Symlink(filepath.Base(branchDir), moduleDir); err != nil {
+								fmt.Printf("symlink failed")
 								return err
 							}
+						}
+						if strings.HasPrefix(submodule, "//") {
+							moduleDir = filepath.Join(moduleDir, submodule[2:])
 						}
 						modules[name] = Module{
 							Key:    name,
 							Source: fmt.Sprintf("git@%s:%s.git%s%s", host, repopath, submodule, branch),
-							Dir:    ".terraform/modules/" + name + submodule[min(len(submodule), 1):],
+							Dir:    moduleDir,
 						}
 					}
 				}
@@ -228,12 +238,17 @@ func getAuth(host string) (*ssh.PublicKeys, error) {
 }
 
 func expandFileName(filename string) (string, error) {
+	if strings.HasPrefix(filename, "~/") {
+		return homeDirFileName(filename[2:])
+	} else {
+		return filename, nil
+	}
+}
+
+func homeDirFileName(filename string) (string, error) {
 	if usr, err := user.Current(); err != nil {
 		return "", err
 	} else {
-		if dir := usr.HomeDir; strings.HasPrefix(filename, "~/") {
-			return filepath.Join(dir, filename[2:]), nil
-		}
-		return filename, nil
+		return filepath.Join(usr.HomeDir, filename), nil
 	}
 }
