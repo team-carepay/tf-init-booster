@@ -38,10 +38,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if _, err := os.Stat(".terraform/modules/modules.json"); err == nil {
-		fmt.Printf("modules.json already exists, skipping")
-		return
-	}
+	//if _, err := os.Stat(".terraform/modules/modules.json"); err == nil {
+	//	fmt.Printf("modules.json already exists, skipping")
+	//	return
+	//}
 	gitCryptKey := os.Getenv("GIT_CRYPT_KEY")
 	if err := os.MkdirAll(".terraform/modules", 0755); err != nil {
 		log.Fatal(err)
@@ -116,8 +116,8 @@ func main() {
 							}
 							branches[key][branch] = moduleDir
 						} else {
-							if err := os.Symlink(filepath.Base(branchDir), moduleDir); err != nil {
-								fmt.Printf("symlink failed")
+							_ = os.RemoveAll(moduleDir)
+							if err := os.Symlink(filepath.Base(branchDir), moduleDir); err != nil && !os.IsNotExist(err) {
 								return err
 							}
 						}
@@ -225,7 +225,10 @@ func copySymLink(source, dest string) error {
 	if link, err := os.Readlink(source); err != nil {
 		return err
 	} else {
-		if err := os.Symlink(link, dest); err != nil && err != os.ErrExist {
+		if _, err := os.Lstat(dest); err == nil {
+			_ = os.Remove(dest)
+		}
+		if err := os.Symlink(link, dest); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		return nil
