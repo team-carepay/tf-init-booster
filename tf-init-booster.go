@@ -1,39 +1,27 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
-	"regexp"
-	"strings"
-
-	git "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
-type Modules struct {
-	Modules []Module `json:"Modules"`
-}
-
-type Module struct {
-	Key    string `json:"Key"`
-	Source string `json:"Source"`
-	Dir    string `json:"Dir"`
-}
-
-type repoKey struct {
-	host string
-	path string
-}
-
 func main() {
+	usr, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
+	modules, err := ScanModules()
+	if err != nil {
+		fmt.Printf("Scanning failed: %v\n", err)
+	}
+	CopyModules(modules, filepath.Join(usr.HomeDir, ".terraform.d/repositories"))
+	WriteModules(modules, ".terraform/modules/modules.json")
+}
+
+/*
+func oldmain() {
 	usr, err := user.Current()
 	if err != nil {
 		log.Fatal(err)
@@ -252,3 +240,4 @@ func homeDirFileName(filename string) (string, error) {
 		return filepath.Join(usr.HomeDir, filename), nil
 	}
 }
+*/
