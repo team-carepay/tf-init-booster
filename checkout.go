@@ -24,11 +24,12 @@ func NewCheckout(repository *Repository, ref, dir string) *Checkout {
 
 func (checkout *Checkout) Copy() error {
 	if Exists(checkout.Dir) {
-		return nil
+		os.RemoveAll(checkout.Dir)
 	}
 	if err := CopyDir(checkout.Repository.Dir, checkout.Dir); err != nil {
 		return err
-	} else if repo, err := git.PlainOpen(checkout.Dir); err != nil {
+	}
+	if repo, err := git.PlainOpen(checkout.Dir); err != nil {
 		return err
 	} else if worktree, err := repo.Worktree(); err != nil {
 		return err

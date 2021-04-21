@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"io/ioutil"
 	"log"
@@ -14,10 +18,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+var publicKeys *transportssh.PublicKeys
+
 func TestAll(t *testing.T) {
-	os.RemoveAll(".terraform")
-	os.RemoveAll("cache")
-	os.RemoveAll("modules.json")
+	generateKeyPair()
 	if modules, err := ScanModules(); err != nil {
 		t.Error(err)
 	} else {
@@ -46,7 +50,7 @@ func TestAll(t *testing.T) {
 			},
 		}
 		defer server.Close()
-		go func() { server.ListenAndServe() }()
+		go func() { _ = server.ListenAndServe() }()
 
 		if err := CopyModules(modules, "cache", testKeys); err != nil {
 			log.Printf("copy failed\n")
@@ -76,7 +80,16 @@ func TestAll(t *testing.T) {
 		if m1.Key != "edge-router" {
 			t.Errorf("Wrong Key: %s", m1.Key)
 		}
+		// remove .terraform modules, run again
 		os.RemoveAll(".terraform") // remove modules, forcing a rerun
+		if err := CopyModules(modules, "cache", testKeys); err != nil {
+			log.Printf("copy failed\n")
+			t.Error(err)
+		}
+		if err := WriteModules(modules, "modules.json"); err != nil {
+			t.Error(err)
+		}
+		// one more time with .terraform folder present (check idempotent)
 		if err := CopyModules(modules, "cache", testKeys); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
@@ -87,13 +100,22 @@ func TestAll(t *testing.T) {
 	}
 }
 
-func testKeys(host string) (transport.AuthMethod, error) {
-	if publicKeys, err := transportssh.NewPublicKeysFromFile("git", "id_rsa", ""); err != nil {
-		return nil, err
-	} else {
-		publicKeys.HostKeyCallback = ssh.InsecureIgnoreHostKey()
-		return publicKeys, nil
+func generateKeyPair() {
+	if privateKey, err := rsa.GenerateKey(rand.Reader, 4096); err == nil {
+		privDER := x509.MarshalPKCS1PrivateKey(privateKey)
+		privBlock := pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: privDER,
+		}
+		privatePEM := pem.EncodeToMemory(&privBlock)
+		if publicKeys, err = transportssh.NewPublicKeys("git", privatePEM, ""); err == nil {
+			publicKeys.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
 	}
+}
+
+func testKeys(host string) (transport.AuthMethod, error) {
+	return publicKeys, nil
 }
 
 type mockSSHConfig struct {

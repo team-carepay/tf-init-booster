@@ -77,6 +77,7 @@ func CopySymLink(source, dest string) error {
 		return err
 	} else {
 		if err := os.Symlink(link, dest); err != nil && err != os.ErrExist {
+			fmt.Printf("Symlink %s to %s failed: %v", link, dest, err)
 			return err
 		}
 	}

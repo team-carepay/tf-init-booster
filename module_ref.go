@@ -121,6 +121,7 @@ func ScanModules() ([]*ModuleRef, error) {
 func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func(string) (transport.AuthMethod, error)) error {
 	repositories := make(map[repoKey]*Repository)
 	checkouts := make(map[checkoutKey]*Checkout)
+	gitCryptKey := os.Getenv("GIT_CRYPT_KEY")
 	for _, m := range modules {
 		repokey := repoKey{host: m.Host, path: m.Path}
 		checkoutkey := checkoutKey{host: m.Host, path: m.Path, ref: m.Ref}
@@ -135,13 +136,22 @@ func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func(string) (t
 			repositories[repokey] = repository
 		}
 		if checkout, found := checkouts[checkoutkey]; !found {
+			fmt.Printf("Checkout %s %s not found\n", m.Path, m.Ref)
 			checkout = NewCheckout(repository, m.Ref, m.Dir)
 			if err := checkout.Copy(); err != nil {
 				return err
 			}
+			if gitCryptKey != "" {
+				if err := checkout.Unlock(gitCryptKey); err != nil {
+					return err
+				}
+			}
 			checkouts[checkoutkey] = checkout
 		} else if err := os.Symlink(filepath.Base(checkout.Dir), m.Dir); err != nil && err != os.ErrExist {
+			fmt.Printf("symlink %s to %s failed: %v", checkout.Dir, m.Dir, err)
 			return err
+		} else {
+			fmt.Printf("symlink %s to %s: %v", checkout.Dir, m.Dir)
 		}
 	}
 	return nil
