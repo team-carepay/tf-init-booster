@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"os"
 
 	git "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
 type Repository struct {
@@ -22,7 +22,7 @@ func NewRepository(host, path, dir string) *Repository {
 	}
 }
 
-func (repository *Repository) Fetch(auth *ssh.PublicKeys) error {
+func (repository *Repository) Fetch(auth transport.AuthMethod) error {
 	if _, err := os.Stat(repository.Dir); os.IsNotExist(err) {
 		if _, err = git.PlainClone(repository.Dir, false, &git.CloneOptions{
 			URL:  fmt.Sprintf("git@%s:%s.git", repository.Host, repository.Path),

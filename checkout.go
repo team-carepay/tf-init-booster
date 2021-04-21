@@ -10,19 +10,22 @@ import (
 
 type Checkout struct {
 	Repository *Repository
-	Branch     string
+	Ref        string
 	Dir        string
 }
 
-func NewCheckout(repository *Repository, branch, dir string) *Checkout {
+func NewCheckout(repository *Repository, ref, dir string) *Checkout {
 	return &Checkout{
 		Repository: repository,
-		Branch:     branch,
+		Ref:        ref,
 		Dir:        dir,
 	}
 }
 
 func (checkout *Checkout) Copy() error {
+	if Exists(checkout.Dir) {
+		return nil
+	}
 	if err := CopyDir(checkout.Repository.Dir, checkout.Dir); err != nil {
 		return err
 	} else if repo, err := git.PlainOpen(checkout.Dir); err != nil {
@@ -30,7 +33,7 @@ func (checkout *Checkout) Copy() error {
 	} else if worktree, err := repo.Worktree(); err != nil {
 		return err
 	} else if err := worktree.Checkout(&git.CheckoutOptions{
-		Branch: plumbing.ReferenceName(checkout.Branch),
+		Branch: plumbing.ReferenceName(checkout.Ref),
 	}); err != nil {
 		return err
 	} else {

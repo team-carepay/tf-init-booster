@@ -1,133 +1,110 @@
-package main_test
+package main
 
 import (
+	"encoding/json"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"io/ioutil"
+	"log"
+	"os"
+	"os/exec"
 	"testing"
+
+	sshserver "github.com/gliderlabs/ssh"
+	transportssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
-func TestInit(t *testing.T) {
-	// 	os.Chdir("test-data")
-	// 	hostPrivateKey, err := ioutil.ReadFile("ssh/id_rsa")
-	// 	if err != nil {
-	// 		log.Fatal("failed to read private key")
-	// 	}
-	// 	hostPrivateKeySigner, err := ssh.ParsePrivateKey(hostPrivateKey)
-	// 	if err != nil {
-	// 		log.Fatal("failed to parse private key")
-	// 	}
+func TestAll(t *testing.T) {
+	os.RemoveAll(".terraform")
+	os.RemoveAll("cache")
+	os.RemoveAll("modules.json")
+	if modules, err := ScanModules(); err != nil {
+		t.Error(err)
+	} else {
+		if len(modules) != 1 {
+			t.Errorf("Expected size 1")
+		}
+		transportssh.DefaultSSHConfig = &mockSSHConfig{map[string]map[string]string{
+			"bitbucket.org": {
+				"Hostname": "localhost",
+				"Port":     "2222",
+			},
+		}}
+		log.Println("starting ssh server on port 2222...")
+		server := &sshserver.Server{
+			Addr: "localhost:2222",
+			Handler: func(s sshserver.Session) {
+				log.Printf("New session\n")
+				cmd := exec.Command("git-upload-pack", ".")
+				cmd.Stdin = s
+				cmd.Stdout = s
+				cmd.Stderr = os.Stderr
+				if err := cmd.Run(); err != nil {
+					log.Printf("command failed\n")
+					t.Error(err)
+				}
+			},
+		}
+		defer server.Close()
+		go func() { server.ListenAndServe() }()
 
-	// 	authorizedKeysBytes, err := ioutil.ReadFile("ssh/authorized-keys")
-	// 	if err != nil {
-	// 		log.Fatal("failed to load authorized_keys")
-	// 	}
-	// 	authorizedKeys := make(map[string]struct{})
-	// 	for len(authorizedKeysBytes) > 0 {
-	// 		pubKey, _, _, rest, err := ssh.ParseAuthorizedKey(authorizedKeysBytes)
-	// 		if err != nil {
-	// 			log.Fatal("failed to parse authorized_keys")
-	// 		}
-	// 		authorizedKeys[string(pubKey.Marshal())] = struct{}{}
-	// 		authorizedKeysBytes = rest
-	// 	}
+		if err := CopyModules(modules, "cache", testKeys); err != nil {
+			log.Printf("copy failed\n")
+			t.Error(err)
+		}
+		if err := WriteModules(modules, "modules.json"); err != nil {
+			t.Error(err)
+		}
+		content, err := ioutil.ReadFile("modules.json")
+		if err != nil {
+			t.Error(err)
+		}
+		var m Modules
+		if err := json.Unmarshal(content, &m); err != nil {
+			t.Error(err)
+		}
+		if len(m.Modules) != 1 {
+			t.Error("Expected one element")
+		}
+		m1 := m.Modules[0]
+		if m1.Dir != ".terraform/modules/edge-router/edge-router" {
+			t.Errorf("Wrong dir: %s", m1.Dir)
+		}
+		if m1.Source != "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=edge-router_1.0.5" {
+			t.Errorf("Wrong source: %s", m1.Source)
+		}
+		if m1.Key != "edge-router" {
+			t.Errorf("Wrong Key: %s", m1.Key)
+		}
+		os.RemoveAll(".terraform") // remove modules, forcing a rerun
+		if err := CopyModules(modules, "cache", testKeys); err != nil {
+			log.Printf("copy failed\n")
+			t.Error(err)
+		}
+		if err := WriteModules(modules, "modules.json"); err != nil {
+			t.Error(err)
+		}
+	}
+}
 
-	// 	sshLis, err := net.Listen("tcp", ":2222")
-	// 	if err != nil {
-	// 		log.Fatal("failed to listen ssh")
-	// 	}
+func testKeys(host string) (transport.AuthMethod, error) {
+	if publicKeys, err := transportssh.NewPublicKeysFromFile("git", "id_rsa", ""); err != nil {
+		return nil, err
+	} else {
+		publicKeys.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		return publicKeys, nil
+	}
+}
 
-	// 	s := gitssh.Server{
-	// 		RepoDir:            "test-repo",
-	// 		Signer:             hostPrivateKeySigner,
-	// 		PublicKeyCallback:  loggingPublicKeyCallback(authorizedKeys),
-	// 		GitRequestTransfer: loggingGitRequestTransfer("/bin/git-shell"),
-	// 	}
-	// 	go func() {
-	// 		// ready <- struct{}{}
-	// 		if err := s.Serve(sshLis); err != gitssh.ErrServerClosed && err != nil {
-	// 			fmt.Errorf("failed to serve: %v", err)
-	// 		}
-	// 	}()
+type mockSSHConfig struct {
+	Values map[string]map[string]string
+}
 
-	// 	tfInitBooster.main()
+func (c *mockSSHConfig) Get(alias, key string) string {
+	a, ok := c.Values[alias]
+	if !ok {
+		return c.Values["*"][key]
+	}
 
-	// 	ctx, cancel := context.WithTimeout(context.Background(), 30)
-	// 	defer cancel()
-
-	// 	if err := s.Shutdown(ctx); err != nil {
-	// 		fmt.Printf("failed to shutdown: %v\n", err)
-	// 	}
-	// }
-
-	// func loggingPublicKeyCallback(authorizedKeys map[string]struct{}) gitssh.PublicKeyCallback {
-	// 	return func(metadata ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	// 		session := hex.EncodeToString(metadata.SessionID())
-	// 		var err error
-	// 		if _, ok := authorizedKeys[string(key.Marshal())]; !ok {
-	// 			err = errors.New("failed to authorize")
-	// 			return nil, err
-	// 		}
-	// 		return &ssh.Permissions{
-	// 			CriticalOptions: map[string]string{},
-	// 			Extensions: map[string]string{
-	// 				"SESSION": session,
-	// 			},
-	// 		}, nil
-	// 	}
-	// }
-	// func loggingGitRequestTransfer(shellPath string) gitssh.GitRequestTransfer {
-	// 	t := gitssh.LocalGitRequestTransfer(shellPath)
-	// 	return func(ctx context.Context, ch ssh.Channel, req *ssh.Request, perms *ssh.Permissions, packCmd, repoPath string) error {
-	// 		startTime := time.Now()
-	// 		chs := &ChannelWithSize{
-	// 			Channel: ch,
-	// 		}
-	// 		var err error
-	// 		defer func() {
-	// 			finishTime := time.Now()
-
-	// 			payload := string(req.Payload)
-	// 			i := strings.Index(payload, "git")
-	// 			if i > -1 {
-	// 				payload = payload[i:]
-	// 			}
-
-	// 			sugar.Infow("GIT_SSH_REQUEST",
-	// 				"session", perms.Extensions["SESSION"],
-	// 				"type", req.Type,
-	// 				"payload", payload,
-	// 				"size", chs.Size(),
-	// 				"elapsed", finishTime.Sub(startTime),
-	// 				"error", err)
-	// 		}()
-	// 		err = t(ctx, chs, req, perms, packCmd, repoPath)
-	// 		return err
-	// 	}
-	// }
-
-	// type ChannelWithSize struct {
-	// 	ssh.Channel
-	// 	size int64
-	// }
-
-	// func (ch *ChannelWithSize) Size() int64 {
-	// 	return ch.size
-	// }
-
-	// func (ch *ChannelWithSize) Write(data []byte) (int, error) {
-	// 	written, err := ch.Channel.Write(data)
-	// 	ch.size += int64(written)
-	// 	return written, err
-	// }
-
-	// func exists(filename string) bool {
-	// 	_, err := os.Stat(filename)
-	// 	return err == nil
-	// }
-
-	// func getRemoteAddr(addr net.Addr) string {
-	// 	s := addr.String()
-	// 	if strings.ContainsRune(s, ':') {
-	// 		host, _, _ := net.SplitHostPort(s)
-	// 		return host
-	// 	}
-	// 	return s
+	return a[key]
 }
