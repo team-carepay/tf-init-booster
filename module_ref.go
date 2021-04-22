@@ -24,9 +24,9 @@ type ModuleRef struct {
 func NewModuleRef(name, host, path, submodule, branch, dir string) *ModuleRef {
 	var ref string
 	if branch == "" {
-		ref = "refs/heads/master"
+		ref = "master"
 	} else {
-		ref = "refs/tags/" + branch[5:]
+		ref = branch[5:] // strip the prefix ?ref=
 	}
 	return &ModuleRef{
 		Name:      name,
