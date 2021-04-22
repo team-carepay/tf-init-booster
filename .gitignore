@@ -18,3 +18,4 @@
 .terraform
 /.idea
 dist/
+tf-init-booster
