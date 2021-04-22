@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -23,31 +24,79 @@ func NewCheckout(repository *Repository, ref, dir string) *Checkout {
 }
 
 func (checkout *Checkout) Copy() error {
-	if Exists(checkout.Dir) {
-		os.RemoveAll(checkout.Dir)
+	gitCryptKey := os.Getenv("GIT_CRYPT_KEY")
+	needsLock := false
+	needsUnlock := false
+	if fileInfo, err := os.Lstat(checkout.Dir); err != nil || fileInfo.Mode()&os.ModeSymlink != 0 {
+		_ = os.RemoveAll(checkout.Dir)
+		if err := CopyDir(checkout.Repository.Dir, checkout.Dir); err != nil {
+			return err
+		}
+		needsUnlock = true
+	} else {
+		needsLock = true
 	}
-	if err := CopyDir(checkout.Repository.Dir, checkout.Dir); err != nil {
-		return err
-	}
+
 	if repo, err := git.PlainOpen(checkout.Dir); err != nil {
 		return err
 	} else if worktree, err := repo.Worktree(); err != nil {
 		return err
-	} else if err := worktree.Checkout(&git.CheckoutOptions{
-		Branch: plumbing.ReferenceName(checkout.Ref),
-	}); err != nil {
-		return err
 	} else {
+		head, err := repo.Head()
+		if err != nil {
+			return err
+		}
+		var target *plumbing.Reference
+		tagRefs, err := repo.Tags()
+		if err != nil {
+			return err
+		}
+		err = tagRefs.ForEach(func(t *plumbing.Reference) error {
+			if t.Name().String() == checkout.Ref {
+				target = t
+			}
+			return nil
+		})
+		if target == nil {
+			branchRefs, err := repo.Branches()
+			if err != nil {
+				return err
+			}
+			err = branchRefs.ForEach(func(t *plumbing.Reference) error {
+				if t.Name().String() == checkout.Ref {
+					target = t
+				}
+				return nil
+			})
+		}
+		if target == nil {
+			fmt.Errorf("Unable to find branch of tag %s", checkout.Ref)
+		}
+		if head.Hash() != target.Hash() {
+			if err := worktree.Reset(&git.ResetOptions{
+				Commit: target.Hash(),
+				Mode: git.HardReset,
+			}); err != nil {
+				return err
+			} else {
+				needsLock = true
+				needsUnlock = true
+			}
+		}
+		if needsUnlock && gitCryptKey != "" {
+			if needsLock {
+				cmd := exec.Command("git-crypt", "lock", "--force")
+				cmd.Dir = checkout.Dir
+				_ = cmd.Run()
+			}
+			cmd := exec.Command("git-crypt", "unlock", gitCryptKey)
+			cmd.Dir = checkout.Dir
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return err
+			}
+			return nil
+		}
 		return nil
 	}
-}
-
-func (checkout *Checkout) Unlock(keyfile string) error {
-	cmd := exec.Command("git-crypt", "unlock", keyfile)
-	cmd.Dir = checkout.Dir
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
 }
