@@ -36,7 +36,7 @@ func TestAll(t *testing.T) {
 		}}
 		log.Println("starting ssh server on port 2222...")
 		server := &sshserver.Server{
-			Addr: "localhost:2222",
+			Addr: ":2222",
 			Handler: func(s sshserver.Session) {
 				log.Printf("New session\n")
 				cmd := exec.Command("git-upload-pack", ".")
