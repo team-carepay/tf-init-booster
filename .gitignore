@@ -16,3 +16,4 @@
 /cache
 /modules.json
 .terraform
+/.idea
