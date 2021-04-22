@@ -25,7 +25,7 @@ func TestAll(t *testing.T) {
 	if modules, err := ScanModules(); err != nil {
 		t.Error(err)
 	} else {
-		if len(modules) != 1 {
+		if len(modules) != 2 {
 			t.Errorf("Expected size 1")
 		}
 		transportssh.DefaultSSHConfig = &mockSSHConfig{map[string]map[string]string{
@@ -67,7 +67,7 @@ func TestAll(t *testing.T) {
 		if err := json.Unmarshal(content, &m); err != nil {
 			t.Error(err)
 		}
-		if len(m.Modules) != 1 {
+		if len(m.Modules) != 2 {
 			t.Error("Expected one element")
 		}
 		m1 := m.Modules[0]
