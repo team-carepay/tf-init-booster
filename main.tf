@@ -1,5 +1,5 @@
 module "edge-router" {
-  source = "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=edge-router_1.0.6"
+  source = "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=edge-router_1.0.7"
 
   country_code = "ke"
   stage        = "test"
@@ -9,7 +9,7 @@ module "edge-router" {
 }
 
 module "another-router" {
-  source = "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=other-tag_1.0.1"
+  source = "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=other-tag_1.0.2"
 
   country_code = "ke"
   stage        = "test"
