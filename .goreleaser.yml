@@ -25,3 +25,7 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
+release:
+  github:
+    owner: team-carepay
+    name: tf-init-booster
