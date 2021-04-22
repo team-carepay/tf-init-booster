@@ -22,14 +22,14 @@ jobs:
     - name: Install git-crypt
       run: sudo apt-get install git-crypt
 
-  - uses: actions/cache@v2
-    with:
-      path: |
-        ~/go/pkg/mod
-        ~/.cache/go-build
-      key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      restore-keys: |
-        ${{ runner.os }}-go-
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
 
     - name: Build
       run: go build -v .
