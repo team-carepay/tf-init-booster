@@ -9,7 +9,7 @@ module "edge-router" {
 }
 
 module "another-router" {
-  source = "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=other-tag_1.0.0"
+  source = "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=other-tag_1.0.1"
 
   country_code = "ke"
   stage        = "test"
