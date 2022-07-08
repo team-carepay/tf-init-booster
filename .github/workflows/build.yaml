@@ -18,6 +18,8 @@ jobs:
 
     - name: Check out code 
       uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
 
     - name: Install git-crypt
       run: sudo apt-get install git-crypt
@@ -35,4 +37,4 @@ jobs:
       run: go build -v .
 
     - name: Test
-      run: GIT_CRYPT_KEY=test-git-crypt-key go test -v .
+      run: go test -v .
