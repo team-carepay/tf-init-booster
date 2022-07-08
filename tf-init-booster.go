@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"log"
@@ -32,6 +33,8 @@ func main() {
 		if err := WriteModules(modules, ".terraform/modules/modules.json"); err != nil {
 			log.Fatal(err)
 		}
+	} else {
+		fmt.Println("No modules found, skipping booster")
 	}
 }
 
