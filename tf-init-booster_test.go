@@ -25,8 +25,8 @@ func TestAll(t *testing.T) {
 	if modules, err := ScanModules(); err != nil {
 		t.Error(err)
 	} else {
-		if len(modules) != 3 {
-			t.Errorf("Expected size 3")
+		if len(modules) != 5 {
+			t.Errorf("Expected size 5")
 		}
 		transportssh.DefaultSSHConfig = &mockSSHConfig{map[string]map[string]string{
 			"bitbucket.org": {
@@ -67,8 +67,8 @@ func TestAll(t *testing.T) {
 		if err := json.Unmarshal(content, &m); err != nil {
 			t.Error(err)
 		}
-		if len(m.Modules) != 3 {
-			t.Error("Expected 3 elements")
+		if len(m.Modules) != 5 {
+			t.Errorf("Expected 5 elements, received %d", len(m.Modules))
 		}
 		m1 := m.Modules[0]
 		if m1.Dir != ".terraform/modules/edge-router/edge-router" {
