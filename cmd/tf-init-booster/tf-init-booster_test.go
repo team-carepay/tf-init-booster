@@ -95,7 +95,7 @@ func TestAll(t *testing.T) {
 		if m1.Dir != ".terraform/modules/edge-router/edge-router" {
 			t.Errorf("Wrong dir: %s", m1.Dir)
 		}
-		if m1.Source != "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=edge-router_2.4.0" {
+		if m1.Source != "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=edge-router_1.0.7" {
 			t.Errorf("Wrong source: %s", m1.Source)
 		}
 		if m1.Key != "edge-router" {
