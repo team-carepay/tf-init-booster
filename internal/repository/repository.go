@@ -95,9 +95,6 @@ func (g *GetAuth) AuthSSH(host string) {
 	g.Auth = publicKeys
 }
 
-// tokenProvider := os.Getenv("TOKEN_PROVIDER")
-// accessToken := os.Getenv(tokenProvider)
-
 func (repository *Repository) Fetch(auth transport.AuthMethod, url string) error {
 	if _, err := os.Stat(repository.Dir); os.IsNotExist(err) {
 		if _, err = git.PlainClone(repository.Dir, false, &git.CloneOptions{
