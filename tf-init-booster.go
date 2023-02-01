@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"log"
 	"os"
 	"os/user"
@@ -36,18 +34,6 @@ func main() {
 	} else {
 		fmt.Println("No modules found, skipping booster")
 	}
-}
-
-func GetAuth(host string) (transport.AuthMethod, error) {
-	privateKeyFile, err := ExpandFileName(ssh.DefaultSSHConfig.Get(host, "IdentityFile"))
-	if err != nil {
-		return nil, err
-	}
-	publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyFile, "")
-	if err != nil {
-		return nil, err
-	}
-	return publicKeys, nil
 }
 
 func ExpandFileName(filename string) (string, error) {

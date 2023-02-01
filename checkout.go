@@ -50,7 +50,7 @@ func (checkout *Checkout) Copy() error {
 	}
 	target, err := repo.ResolveRevision(plumbing.Revision(checkout.Ref))
 	if err != nil {
-		return fmt.Errorf("Unable to find branch of tag %s", checkout.Ref)
+		return fmt.Errorf("unable to find branch of tag %s", checkout.Ref)
 	}
 	if head.Hash() != *target {
 		if err := worktree.Reset(&git.ResetOptions{
