@@ -1,11 +1,13 @@
-package main
+package dirutil
 
 import (
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strings"
 )
 
 func CopyDir(scrDir, dest string) error {
@@ -82,4 +84,19 @@ func CopySymLink(source, dest string) error {
 		}
 	}
 	return nil
+}
+
+func ExpandFileName(filename string) (string, error) {
+	if strings.HasPrefix(filename, "~/") {
+		return HomeDirFileName(filename[2:])
+	}
+	return filename, nil
+}
+
+func HomeDirFileName(filename string) (string, error) {
+	if usr, err := user.Current(); err != nil {
+		return "", err
+	} else {
+		return filepath.Join(usr.HomeDir, filename), nil
+	}
 }

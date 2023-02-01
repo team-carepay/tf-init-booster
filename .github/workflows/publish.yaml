@@ -35,10 +35,10 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Build
-        run: go build -v .
+        run: go build -v ./cmd/tf-init-booster
 
       - name: Test
-        run: go test -v .
+        run: go test -v ./...
 
       - name: GoReleaser
         uses: goreleaser/goreleaser-action@v2

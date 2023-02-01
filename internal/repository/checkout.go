@@ -1,4 +1,4 @@
-package main
+package repository
 
 import (
 	"fmt"
@@ -7,6 +7,8 @@ import (
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+
+	dirutil "github.com/team-carepay/tf-init-booster/internal/dirutil"
 )
 
 type Checkout struct {
@@ -30,7 +32,7 @@ func (checkout *Checkout) Copy() error {
 	fileInfo, err := os.Lstat(checkout.Dir)
 	if err != nil || fileInfo.Mode()&os.ModeSymlink != 0 {
 		_ = os.RemoveAll(checkout.Dir)
-		if err := CopyDir(checkout.Repository.Dir, checkout.Dir); err != nil {
+		if err := dirutil.CopyDir(checkout.Repository.Dir, checkout.Dir); err != nil {
 			return err
 		}
 		needsUnlock = true

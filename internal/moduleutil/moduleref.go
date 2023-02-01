@@ -1,14 +1,16 @@
-package main
+package moduleutil
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/go-git/go-git/v5/plumbing/transport"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	repo "github.com/team-carepay/tf-init-booster/internal/repository"
 )
 
 type ModuleRef struct {
@@ -118,24 +120,26 @@ func ScanModules() ([]*ModuleRef, error) {
 	return modules, nil
 }
 
-func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func(string) (transport.AuthMethod, error)) error {
-	repositories := make(map[repoKey]*Repository)
-	checkouts := make(map[checkoutKey]*Checkout)
+func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func() (transport.AuthMethod, string, error)) error {
+	repositories := make(map[repoKey]*repo.Repository)
+	checkouts := make(map[checkoutKey]*repo.Checkout)
 	for _, m := range modules {
 		repokey := repoKey{host: m.Host, path: m.Path}
 		checkoutkey := checkoutKey{host: m.Host, path: m.Path, ref: m.Ref}
 		repository, ok := repositories[repokey]
+		auth, url, err := authFunc()
+		if err != nil {
+			return err
+		}
 		if !ok {
-			repository = NewRepository(m.Host, m.Path, filepath.Join(cacheDir, m.Host, m.Path))
-			if auth, err := authFunc(m.Host); err != nil {
-				return err
-			} else if err := repository.Fetch(auth); err != nil {
+			repository = repo.NewRepository(m.Host, m.Path, filepath.Join(cacheDir, m.Host, m.Path))
+			if err := repository.Fetch(auth, url); err != nil {
 				return err
 			}
 			repositories[repokey] = repository
 		}
 		if checkout, found := checkouts[checkoutkey]; !found {
-			checkout = NewCheckout(repository, m.Ref, m.Dir)
+			checkout = repo.NewCheckout(repository, m.Ref, m.Dir)
 			if err := checkout.Copy(); err != nil {
 				return err
 			}
