@@ -35,7 +35,7 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Build
-        run: go build -v ./cmd/tf-init-booster
+        run: go build -v ${GITHUB_WORKSPACE}/cmd/tf-init-booster
 
       - name: Test
         run: go test -v ./...
