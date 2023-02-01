@@ -58,7 +58,7 @@ func TestAll(t *testing.T) {
 			Addr: ":2222",
 			Handler: func(s sshserver.Session) {
 				log.Printf("New session\n")
-				cmd := exec.Command("git-upload-pack", ".")
+				cmd := exec.Command("git-upload-pack", "../../")
 				cmd.Stdin = s
 				cmd.Stdout = s
 				cmd.Stderr = os.Stderr
@@ -95,7 +95,7 @@ func TestAll(t *testing.T) {
 		if m1.Dir != ".terraform/modules/edge-router/edge-router" {
 			t.Errorf("Wrong dir: %s", m1.Dir)
 		}
-		if m1.Source != "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=edge-router_1.0.7" {
+		if m1.Source != "git@bitbucket.org:carepaydev/ssi-platform-modules.git//edge-router?ref=edge-router_2.4.0" {
 			t.Errorf("Wrong source: %s", m1.Source)
 		}
 		if m1.Key != "edge-router" {
