@@ -14,29 +14,21 @@ import (
 
 	sshserver "github.com/gliderlabs/ssh"
 	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	transportssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	moduleutil "github.com/team-carepay/tf-init-booster/internal/moduleutil"
+	repo "github.com/team-carepay/tf-init-booster/internal/repository"
 	"golang.org/x/crypto/ssh"
 )
 
 var publicKeys *transportssh.PublicKeys
 
 type mockGetAuth struct {
-	Url string
+	repo.Auth
 }
 
-func (g *mockGetAuth) AuthToken() (transport.AuthMethod, string, error) {
-	access := &http.BasicAuth{
-		Username: "fakeuser",
-		Password: "randomtoken",
-	}
-
-	return access, "", nil
-}
-
-func (g *mockGetAuth) AuthSSH() (transport.AuthMethod, error) {
-	return publicKeys, nil
+func (g *mockGetAuth) Get() (transport.AuthMethod, string, error) {
+	url := "git@bitbucket.org:carepaydev/ssi-platform-modules.git"
+	return publicKeys, url, nil
 }
 
 func TestAll(t *testing.T) {
@@ -73,7 +65,7 @@ func TestAll(t *testing.T) {
 
 		mockAuth := &mockGetAuth{}
 		log.Println("copying modules")
-		if err := moduleutil.CopyModules(modules, "/tmp/cache", mockAuth.AuthSSH); err != nil {
+		if err := moduleutil.CopyModules(modules, "/tmp/cache", mockAuth.Get); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}
@@ -103,7 +95,7 @@ func TestAll(t *testing.T) {
 		}
 		// remove .terraform modules, run again
 		os.RemoveAll(".terraform") // remove modules, forcing a rerun
-		if err := moduleutil.CopyModules(modules, "/tmp/cache", mockAuth.AuthSSH); err != nil {
+		if err := moduleutil.CopyModules(modules, "/tmp/cache", mockAuth.Get); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}
@@ -111,7 +103,7 @@ func TestAll(t *testing.T) {
 			t.Error(err)
 		}
 		// one more time with .terraform folder present (check idempotent)
-		if err := moduleutil.CopyModules(modules, "/tmp/cache", mockAuth.AuthSSH); err != nil {
+		if err := moduleutil.CopyModules(modules, "/tmp/cache", mockAuth.Get); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}

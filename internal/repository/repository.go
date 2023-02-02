@@ -13,9 +13,9 @@ import (
 )
 
 type Auth interface {
-	AuthToken()
-	AuthSSH(host string)
-	Get() (transport.AuthMethod, error)
+	AuthToken() (transport.AuthMethod, error)
+	AuthSSH(host string) (transport.AuthMethod, error)
+	Get() (transport.AuthMethod, string, error)
 }
 
 type GetAuth struct {
@@ -24,61 +24,52 @@ type GetAuth struct {
 	Repository
 }
 
-func (g *GetAuth) Get() (transport.AuthMethod, error) {
+func (g *GetAuth) Get() (transport.AuthMethod, string, error) {
 	var (
 		accessType string = os.Getenv("REPO_ACCESS")
 	)
 
 	if accessType == "token" {
-		g.AuthToken()
-		if g.Err != nil {
-			return nil, fmt.Errorf("unable to get auth token, please check if the token exist")
+		auth, err := g.AuthToken()
+		if err != nil {
+			return nil, "", err
 		}
-		return g.Auth, nil
+		url := fmt.Sprintf("https://%s/%s", g.Host, g.Path)
+		return auth, url, nil
 	}
-
-	if accessType == "ssh" || accessType == "" {
-		g.AuthSSH(g.Host)
-
-		if g.Err != nil {
-			return nil, fmt.Errorf("unable to get auth ssh, please check if the ssh key exist")
-		}
-		return g.Auth, nil
+	url := fmt.Sprintf("git@%s:%s.git", g.Host, g.Path)
+	auth, err := g.AuthSSH(g.Host)
+	if err != nil {
+		return nil, "", err
 	}
-
-	return nil, fmt.Errorf("unable to get auth, please check if your config is correct")
+	return auth, url, nil
 }
 
-func (g *GetAuth) AuthToken() {
+func (g *GetAuth) AuthToken() (transport.AuthMethod, error) {
 	tokenProvider := os.Getenv("TF_TOKEN_PROVIDER")
 	accessUser := os.Getenv("TF_ACCESS_USER")
 	accessToken := os.Getenv(tokenProvider)
 
 	if accessToken == "" || tokenProvider == "" {
-		g.Auth = nil
-		g.Err = fmt.Errorf("unable to get auth token please check if the variable exist")
-		g.Url = fmt.Sprintf("https://%s/%s.git", g.Host, g.Path)
+		return nil, fmt.Errorf("unable to get auth token please check if the variable exist")
 	}
 	access := &http.BasicAuth{
 		Username: accessUser,
 		Password: accessToken,
 	}
-	g.Auth = access
+	return access, nil
 }
 
-func (g *GetAuth) AuthSSH(host string) {
+func (g *GetAuth) AuthSSH(host string) (transport.AuthMethod, error) {
 	privateKeyFile, err := dirutil.ExpandFileName(ssh.DefaultSSHConfig.Get(host, "IdentityFile"))
 	if err != nil {
-		g.Auth = nil
-		g.Err = err
-		g.Url = fmt.Sprintf("git@%s:%s.git", g.Host, g.Path)
+		return nil, err
 	}
 	publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyFile, "")
 	if err != nil {
-		g.Auth = nil
-		g.Err = err
+		return nil, err
 	}
-	g.Auth = publicKeys
+	return publicKeys, nil
 }
 
 type Repository struct {
@@ -86,7 +77,6 @@ type Repository struct {
 	Path string
 	Dir  string
 	Auth transport.AuthMethod
-	Url  string
 }
 
 func NewRepository(host, path, dir string) *Repository {
@@ -97,10 +87,10 @@ func NewRepository(host, path, dir string) *Repository {
 	}
 }
 
-func (r *Repository) Fetch(auth transport.AuthMethod) error {
+func (r *Repository) Fetch(auth transport.AuthMethod, url string) error {
 	if _, err := os.Stat(r.Dir); os.IsNotExist(err) {
 		if _, err = git.PlainClone(r.Dir, false, &git.CloneOptions{
-			URL:  r.Url,
+			URL:  url,
 			Auth: auth,
 		}); err != nil {
 			return err

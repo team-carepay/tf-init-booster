@@ -120,7 +120,7 @@ func ScanModules() ([]*ModuleRef, error) {
 	return modules, nil
 }
 
-func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func() (transport.AuthMethod, error)) error {
+func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func() (transport.AuthMethod, string, error)) error {
 	repositories := make(map[repoKey]*repo.Repository)
 	checkouts := make(map[checkoutKey]*repo.Checkout)
 	for _, m := range modules {
@@ -129,9 +129,9 @@ func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func() (transpo
 		repository, ok := repositories[repokey]
 		if !ok {
 			repository = repo.NewRepository(m.Host, m.Path, filepath.Join(cacheDir, m.Host, m.Path))
-			if auth, err := authFunc(); err != nil {
+			if auth, url, err := authFunc(); err != nil {
 				return err
-			} else if err := repository.Fetch(auth); err != nil {
+			} else if err := repository.Fetch(auth, url); err != nil {
 				return err
 			}
 			repositories[repokey] = repository

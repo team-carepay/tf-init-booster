@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 
@@ -46,6 +47,7 @@ func (checkout *Checkout) Copy() error {
 	if err != nil {
 		return err
 	}
+	log.Println(repo)
 	head, err := repo.Head()
 	if err != nil {
 		return err
