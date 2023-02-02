@@ -14,8 +14,7 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 /cache
-/modules.json
+*modules.json
 .terraform
 /.idea
 dist/
-tf-init-booster

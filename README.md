@@ -6,6 +6,11 @@ When running terraform on a project with many modules, sourced from git, the ope
 
 Run `tf-init-booster` before you run `terraform init`. The tool will download all required modules in advance.
 
+## Environment Variables
+`TOKEN_PROVIDER` - The name of the token provider to use. ex: `TOKEN_PROVIDER = ATLANTIS_BITBUCKET_TOKEN` The code will try to found the env variable `ATLANTIS_BITBUCKET_TOKEN` to get the personal token
+
+`REPO_ACCESS` - how will the the access to the repository, supported values are `ssh` and `token`
+
 ## Git-Crypt
 
 When the environment variable `GIT_CRYPT_KEY` is set, the tool will execute `git-crypt unlock` after downloading the module sources.
