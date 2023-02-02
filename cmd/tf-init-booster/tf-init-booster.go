@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	auth := repo.GetAuth{}
+	var auth repo.Auth = &repo.GetAuth{}
 
 	usr, err := user.Current()
 	if err != nil {

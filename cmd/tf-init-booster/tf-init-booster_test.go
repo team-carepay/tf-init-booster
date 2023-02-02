@@ -28,15 +28,15 @@ type mockGetAuth struct {
 
 func (g *mockGetAuth) AuthToken() (transport.AuthMethod, string, error) {
 	access := &http.BasicAuth{
-		Username: "carepaybot",
+		Username: "fakeuser",
 		Password: "randomtoken",
 	}
 
 	return access, "", nil
 }
 
-func (g *mockGetAuth) AuthSSH() (transport.AuthMethod, string, error) {
-	return publicKeys, "git@bitbucket.org:carepaydev/ssi-platform-modules.git", nil
+func (g *mockGetAuth) AuthSSH() (transport.AuthMethod, error) {
+	return publicKeys, nil
 }
 
 func TestAll(t *testing.T) {
