@@ -3,12 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/go-git/go-git/v5/plumbing/transport"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/go-git/go-git/v5/plumbing/transport"
 )
 
 type ModuleRef struct {
@@ -52,7 +53,7 @@ func (m *ModuleRef) ToModule() *Module {
 	}
 }
 
-func WriteModules(modules []*ModuleRef, file string) error {
+func WriteModules(modules map[string]*ModuleRef, file string) error {
 	var moduleArray []*Module
 	for _, v := range modules {
 		moduleArray = append(moduleArray, v.ToModule())
@@ -89,9 +90,9 @@ type checkoutKey struct {
 	ref  string
 }
 
-func ScanModules() ([]*ModuleRef, error) {
+func ScanModules() (map[string]*ModuleRef, error) {
 	moduleRefRegex := regexp.MustCompile(`(?s)module\s*"([a-zA-Z0-9_\.-]+)"\s*{.*?source\s*=\s*"git@([a-zA-Z0-9_\.-]+):([a-zA-Z0-9_\/-]+)\.git(\/\/[a-zA-Z0-9_\/-]+)?(\?ref=[a-zA-Z0-9_\/\.-]+)?"`)
-	var modules []*ModuleRef
+	var modules = make(map[string]*ModuleRef)
 	err := filepath.Walk(".",
 		func(file string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -100,13 +101,36 @@ func ScanModules() ([]*ModuleRef, error) {
 			if info.IsDir() && (info.Name() == ".terraform" || info.Name() == ".git") {
 				return filepath.SkipDir
 			}
-			if !info.IsDir() && filepath.Ext(file) == ".tf" {
+			if !info.IsDir() && filepath.Ext(file) == ".tf" && !strings.HasSuffix(file, "override.tf") {
 				if content, err := ioutil.ReadFile(file); err == nil {
 					matches := moduleRefRegex.FindAllStringSubmatch(string(content), -1)
 					for _, match := range matches {
 						name, host, path, submodule, branch := match[1], match[2], match[3], match[4], match[5]
 						checkoutDir := filepath.Join(".terraform/modules", name)
-						modules = append(modules, NewModuleRef(name, host, path, submodule, branch, checkoutDir))
+						modules[name] = NewModuleRef(name, host, path, submodule, branch, checkoutDir)
+					}
+				}
+			}
+			return nil
+		})
+	if err != nil {
+		return nil, err
+	}
+	err = filepath.Walk(".",
+		func(file string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() && (info.Name() == ".terraform" || info.Name() == ".git") {
+				return filepath.SkipDir
+			}
+			if !info.IsDir() && filepath.Ext(file) == ".tf" && strings.HasSuffix(file, "override.tf") {
+				if content, err := ioutil.ReadFile(file); err == nil {
+					matches := moduleRefRegex.FindAllStringSubmatch(string(content), -1)
+					for _, match := range matches {
+						name, host, path, submodule, branch := match[1], match[2], match[3], match[4], match[5]
+						checkoutDir := filepath.Join(".terraform/modules", name)
+						modules[name] = NewModuleRef(name, host, path, submodule, branch, checkoutDir)
 					}
 				}
 			}
@@ -118,9 +142,13 @@ func ScanModules() ([]*ModuleRef, error) {
 	return modules, nil
 }
 
-func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func(string) (transport.AuthMethod, error)) error {
+func CopyModules(modules map[string]*ModuleRef, cacheDir string, authFunc func(string) (transport.AuthMethod, error)) error {
 	repositories := make(map[repoKey]*Repository)
 	checkouts := make(map[checkoutKey]*Checkout)
+	copier, err := NewCopier()
+	if err != nil {
+		return err
+	}
 	for _, m := range modules {
 		repokey := repoKey{host: m.Host, path: m.Path}
 		checkoutkey := checkoutKey{host: m.Host, path: m.Path, ref: m.Ref}
@@ -136,8 +164,17 @@ func CopyModules(modules []*ModuleRef, cacheDir string, authFunc func(string) (t
 		}
 		if checkout, found := checkouts[checkoutkey]; !found {
 			checkout = NewCheckout(repository, m.Ref, m.Dir)
-			if err := checkout.Copy(); err != nil {
+			if err := checkout.Checkout(); err != nil {
 				return err
+			} else {
+				fileInfo, err := os.Lstat(checkout.Dir)
+				if err != nil || fileInfo.Mode()&os.ModeSymlink != 0 {
+					_ = os.RemoveAll(checkout.Dir) // make sure destination does not exist
+				}
+
+				if err := copier.CopyDir(repository.Dir, checkout.Dir); err != nil {
+					return err
+				}
 			}
 			checkouts[checkoutkey] = checkout
 		} else {
