@@ -53,7 +53,8 @@ func TestAll(t *testing.T) {
 		defer server.Close()
 		go func() { _ = server.ListenAndServe() }()
 
-		if err := CopyModules(modules, "/tmp/cache", testKeys); err != nil {
+        tempDir := t.TempDir()
+		if err := CopyModules(modules, tempDir, testKeys); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}
@@ -89,7 +90,7 @@ func TestAll(t *testing.T) {
 		}
 		// remove .terraform modules, run again
 		os.RemoveAll(".terraform") // remove modules, forcing a rerun
-		if err := CopyModules(modules, "/tmp/cache", testKeys); err != nil {
+		if err := CopyModules(modules, tempDir, testKeys); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}
@@ -97,7 +98,7 @@ func TestAll(t *testing.T) {
 			t.Error(err)
 		}
 		// one more time with .terraform folder present (check idempotent)
-		if err := CopyModules(modules, "/tmp/cache", testKeys); err != nil {
+		if err := CopyModules(modules, tempDir, testKeys); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}
