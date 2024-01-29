@@ -1,27 +1,60 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	gitcrypt "github.com/jbuchbinder/go-git-crypt"
 )
 
-func CopyDir(scrDir, dest string) error {
-	if entries, err := ioutil.ReadDir(scrDir); err != nil {
+var (
+	gitCryptHeader = []byte{0, 'G', 'I', 'T', 'C', 'R', 'Y', 'P', 'T'}
+)
+
+const (
+	aesEncryptorNonceLen = 12
+)
+
+type Copier struct {
+	gc  *gitcrypt.GitCrypt
+	key gitcrypt.Key
+}
+
+func NewCopier() (*Copier, error) {
+	keyPath := os.Getenv("GIT_CRYPT_KEY")
+	if keyPath != "" {
+		gc := gitcrypt.GitCrypt{}
+		key, err := gc.KeyFromFile(keyPath)
+		key.Version = 0 // not sure why this is needed
+		if err != nil {
+			return nil, err
+		}
+		return &Copier{
+			gc:  &gc,
+			key: key,
+		}, nil
+	}
+	return &Copier{}, nil
+}
+
+func (copier *Copier) CopyDir(scrDir, dest string) error {
+	if entries, err := os.ReadDir(scrDir); err != nil {
 		return err
 	} else {
 		for _, entry := range entries {
 			sourcePath := filepath.Join(scrDir, entry.Name())
 			destPath := filepath.Join(dest, entry.Name())
 
-			switch entry.Mode() & os.ModeType {
+			info, _ := entry.Info()
+			switch entry.Type() & os.ModeType {
 			case os.ModeDir:
-				if err := CreateIfNotExists(destPath, entry.Mode()); err != nil {
+				if err := CreateIfNotExists(destPath, info.Mode()); err != nil {
 					return err
 				}
-				if err := CopyDir(sourcePath, destPath); err != nil {
+				if err := copier.CopyDir(sourcePath, destPath); err != nil {
 					return err
 				}
 			case os.ModeSymlink:
@@ -29,7 +62,7 @@ func CopyDir(scrDir, dest string) error {
 					return err
 				}
 			default:
-				if err := CopyFile(sourcePath, destPath, entry.Mode()); err != nil {
+				if err := copier.CopyFile(sourcePath, destPath, info.Mode()); err != nil {
 					return err
 				}
 			}
@@ -38,7 +71,7 @@ func CopyDir(scrDir, dest string) error {
 	}
 }
 
-func CopyFile(srcFile, dstFile string, mode os.FileMode) error {
+func (copier *Copier) CopyFile(srcFile, dstFile string, mode os.FileMode) error {
 	if out, err := os.OpenFile(dstFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode); err != nil {
 		return err
 	} else {
@@ -47,8 +80,24 @@ func CopyFile(srcFile, dstFile string, mode os.FileMode) error {
 			return err
 		} else {
 			defer in.Close()
-			if _, err = io.Copy(out, in); err != nil {
-				return err
+			header := make([]byte, 10+aesEncryptorNonceLen)
+			n, err := in.Read(header)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("failed to read header from file: '%s', n is %d, error: '%s'", srcFile, n, err.Error())
+			}
+			if copier.gc != nil && bytes.Equal(header[0:9], gitCryptHeader) {
+				err = copier.gc.DecryptStream(copier.key, header, in, out)
+				if err != nil {
+					fmt.Printf("failed to decrypt file: '%s', error: '%s'", srcFile, err.Error())
+				}
+			} else if n > 0 {
+				_, err = out.Write(header[0:n]) // write the bytes we read earlier to check for the header
+				if err != nil {
+					return fmt.Errorf("failed to write header to file: '%s', error: '%s'", dstFile, err.Error())
+				}
+				if _, err = io.Copy(out, in); err != nil {
+					return fmt.Errorf("failed to copy file: '%s', error: '%s'", srcFile, err.Error())
+				}
 			}
 			return nil
 		}

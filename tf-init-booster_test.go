@@ -6,12 +6,13 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"github.com/go-git/go-git/v5/plumbing/transport"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"testing"
+
+	"github.com/go-git/go-git/v5/plumbing/transport"
 
 	sshserver "github.com/gliderlabs/ssh"
 	transportssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
@@ -52,7 +53,8 @@ func TestAll(t *testing.T) {
 		defer server.Close()
 		go func() { _ = server.ListenAndServe() }()
 
-		if err := CopyModules(modules, "/tmp/cache", testKeys); err != nil {
+        tempDir := t.TempDir()
+		if err := CopyModules(modules, tempDir, testKeys); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}
@@ -70,7 +72,13 @@ func TestAll(t *testing.T) {
 		if len(m.Modules) != 3 {
 			t.Errorf("Expected 3 elements, received %d", len(m.Modules))
 		}
-		m1 := m.Modules[0]
+		var m1 *Module
+		for _, v := range m.Modules {
+			if v.Key == "edge-router" {
+				m1 = v
+				break
+			}
+		}
 		if m1.Dir != ".terraform/modules/edge-router/edge-router" {
 			t.Errorf("Wrong dir: %s", m1.Dir)
 		}
@@ -82,7 +90,7 @@ func TestAll(t *testing.T) {
 		}
 		// remove .terraform modules, run again
 		os.RemoveAll(".terraform") // remove modules, forcing a rerun
-		if err := CopyModules(modules, "/tmp/cache", testKeys); err != nil {
+		if err := CopyModules(modules, tempDir, testKeys); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}
@@ -90,7 +98,7 @@ func TestAll(t *testing.T) {
 			t.Error(err)
 		}
 		// one more time with .terraform folder present (check idempotent)
-		if err := CopyModules(modules, "/tmp/cache", testKeys); err != nil {
+		if err := CopyModules(modules, tempDir, testKeys); err != nil {
 			log.Printf("copy failed\n")
 			t.Error(err)
 		}
